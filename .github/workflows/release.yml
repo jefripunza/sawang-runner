@@ -1,0 +1,491 @@
+name: Release & Docker Multi-Arch Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      custom_version:
+        description: "Custom version number (optional, e.g. 1, 2, 3)"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  NAME: sawang-runner
+
+jobs:
+  version_and_tag:
+    name: Compute Version & Tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.calc_version.outputs.tag }}
+      version: ${{ steps.calc_version.outputs.version }}
+      prev_release_tag: ${{ steps.calc_version.outputs.prev_release_tag }}
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all tags
+        shell: bash
+        run: git fetch --tags --force origin || true
+
+      - name: Determine Version & Create Tag
+        id: calc_version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_CUSTOM_VERSION: ${{ github.event.inputs.custom_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 1. Get latest GitHub release tag (if any)
+          PREV_RELEASE_TAG=$(gh release list --limit 30 --json tagName,isDraft,isPrerelease --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName' 2>/dev/null | grep -E '^v?[0-9]+$' | head -n 1 || echo "")
+          echo "Found previous GitHub release tag: '${PREV_RELEASE_TAG}'"
+
+          # 2. Find highest integer version among existing Git tags (e.g. 1, 2, v1, v2)
+          MAX_NUM=0
+          for t in $(git tag -l | grep -E '^v?[0-9]+$'); do
+            num="${t#v}"
+            if [ "$num" -gt "$MAX_NUM" ] 2>/dev/null; then
+              MAX_NUM="$num"
+            fi
+          done
+
+          # Also check PREV_RELEASE_TAG number
+          if [ -n "$PREV_RELEASE_TAG" ]; then
+            pnum="${PREV_RELEASE_TAG#v}"
+            if [ "$pnum" -gt "$MAX_NUM" ] 2>/dev/null; then
+              MAX_NUM="$pnum"
+            fi
+          fi
+
+          echo "Highest existing version number found: ${MAX_NUM}"
+
+          # 3. Calculate New Single-Number Version (tanpa titik: 1, 2, 3, dst.)
+          if [ -n "${INPUT_CUSTOM_VERSION}" ]; then
+            CLEAN_NUM="${INPUT_CUSTOM_VERSION#v}"
+            TAG="v${CLEAN_NUM}"
+            VERSION="${CLEAN_NUM}"
+          else
+            NEXT_NUM=$((MAX_NUM + 1))
+            TAG="v${NEXT_NUM}"
+            VERSION="${NEXT_NUM}"
+
+            # Safety loop to prevent tag collision
+            while git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; do
+              echo "⚠️ Tag '$TAG' already exists in repository, incrementing..."
+              NEXT_NUM=$((NEXT_NUM + 1))
+              TAG="v${NEXT_NUM}"
+              VERSION="${NEXT_NUM}"
+            done
+          fi
+
+          echo "Calculated Tag: $TAG (Version: $VERSION, Previous: $PREV_RELEASE_TAG)"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "prev_release_tag=${PREV_RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+          # 4. Push new Git Tag
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "✅ Created and pushed tag $TAG"
+
+  docker_build_push:
+    name: Build & Push Docker Multi-Arch
+    needs: version_and_tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free Disk Space (Runner Cleanup)
+        shell: bash
+        run: |
+          echo "🧹 Cleaning up pre-installed software to maximize disk space..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: Validate Docker Hub Secrets
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "::error::❌ DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets must be set in GitHub repository secrets for releases!"
+            exit 1
+          fi
+          echo "✅ Docker Hub secrets validated."
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        id: docker_login
+        uses: docker/login-action@v3
+        continue-on-error: true
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Retry Log in to Docker Hub if needed
+        if: steps.docker_login.outcome != 'success'
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          echo "⚠️ docker/login-action encountered an issue. Retrying login with Docker CLI..."
+          SUCCESS=0
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i/5: Logging in to docker.io..."
+            if echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin; then
+              echo "✅ Successfully logged in to Docker Hub!"
+              SUCCESS=1
+              break
+            fi
+            echo "⚠️ Docker login attempt $i failed. Retrying in 10s..."
+            sleep 10
+          done
+
+          if [ "$SUCCESS" -ne 1 ]; then
+            echo "::error::❌ Failed to log in to Docker Hub after 5 attempts."
+            exit 1
+          fi
+
+      - name: Set up QEMU (Multi-Architecture Emulation)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Multi-Arch Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.NAME }}:${{ needs.version_and_tag.outputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.NAME }}:${{ needs.version_and_tag.outputs.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.NAME }}:latest
+          cache-from: type=gha,scope=${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=${{ github.ref_name }}
+
+      - name: Prune Old Caches (Keep Latest Only)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 Searching for old caches in branch: ${{ github.ref_name }}..."
+          CACHE_IDS=$(gh api --paginate -X GET /repos/${{ github.repository }}/actions/caches \
+            --jq '.actions_caches[] | select(.ref == "${{ github.ref }}") | .id' | tail -n +2 || true)
+
+          if [ -z "$CACHE_IDS" ]; then
+            echo "✅ No stale caches need to be purged."
+          else
+            echo "🗑️ Purging older caches..."
+            for id in $CACHE_IDS; do
+              echo "Deleting cache ID: $id"
+              gh api -X DELETE /repos/${{ github.repository }}/actions/caches/$id || true
+            done
+            echo "✅ Cache cleanup completed! Only the latest cache is retained."
+          fi
+
+  publish_release:
+    name: Generate Release Notes & Publish GitHub Release
+    needs: [version_and_tag, docker_build_push]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all tags and branch history
+        shell: bash
+        run: |
+          git fetch --tags --force origin || true
+
+      - name: Generate Release Notes via NineRouter or Smart Categorization
+        id: generate_notes
+        env:
+          NINEROUTER_URL: ${{ secrets.NINEROUTER_URL || vars.NINEROUTER_URL }}
+          NINEROUTER_API_KEY: ${{ secrets.NINEROUTER_API_KEY || vars.NINEROUTER_API_KEY }}
+          PREV_TAG: ${{ needs.version_and_tag.outputs.prev_release_tag }}
+          CURRENT_TAG: ${{ needs.version_and_tag.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          COMMITS=""
+          # 1. If PREV_TAG is present, valid, and different from CURRENT_TAG:
+          if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$CURRENT_TAG" ] && git rev-parse -q --verify "refs/tags/${PREV_TAG}" >/dev/null; then
+            echo "Fetching commits between ${PREV_TAG} and HEAD..."
+            COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"* %s (%h) by @%al" --no-merges || true)
+            if [ -z "$COMMITS" ]; then
+              COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"* %s (%h) by @%al" || true)
+            fi
+          fi
+
+          # 2. Fallback if COMMITS is empty (e.g. first release)
+          if [ -z "$COMMITS" ]; then
+            echo "Fallback: Fetching last 50 commits up to HEAD..."
+            COMMITS=$(git log -n 50 --pretty=format:"* %s (%h) by @%al" || true)
+          fi
+
+          echo "Gathered commits:"
+          echo "$COMMITS"
+          export COMMITS
+
+          python3 -c "import sys, textwrap; exec(compile(textwrap.dedent(sys.stdin.read()), '<stdin>', 'exec'))" << 'PYEOF'
+          import json, os, re, datetime, urllib.request, urllib.error
+
+          ninerouter_url = os.environ.get("NINEROUTER_URL", "").rstrip("/")
+          api_key = os.environ.get("NINEROUTER_API_KEY", "")
+          prev_tag = os.environ.get("PREV_TAG", "")
+          current_tag = os.environ.get("CURRENT_TAG", "")
+          commits = os.environ.get("COMMITS", "").strip()
+
+          def strip_commit_prefix(text: str) -> str:
+              return re.sub(
+                  r"^(\s*(?:[\*\-]\s*)?)(?:feat|fix|refactor|perf|style|chore|build|ci|docs|test|revert|enhancement)(?:\([^\)]*\))?:\s*",
+                  r"\1",
+                  text,
+                  flags=re.IGNORECASE
+              )
+
+          def clean_author(author: str) -> str:
+              author = author.strip().lstrip("@")
+              if not author:
+                  return "jefripunza"
+              lower = author.lower()
+              if "jefri" in lower or "triyanto" in lower:
+                  return "jefripunza"
+              if "@" in author:
+                  author = author.split("@")[0]
+              author = re.sub(r"^\d+\+", "", author)
+              author = re.sub(r"[^\w\-]", "", author.replace(" ", ""))
+              return author or "jefripunza"
+
+          # Smart categorization fallback
+          categories = {
+              "features": [],
+              "improvements": [],
+              "fixes": [],
+              "maintenance": [],
+              "other": []
+          }
+
+          for line in commits.split("\n"):
+              line = line.strip()
+              if not line:
+                  continue
+              m = re.match(r"^\*?\s*(.+?)\s*\(([a-f0-9]+)\)\s+by\s+@?(.+)$", line, re.IGNORECASE)
+              if m:
+                  raw_msg = m.group(1).strip()
+                  clean_msg = strip_commit_prefix(raw_msg)
+                  h = m.group(2).strip()
+                  author_user = clean_author(m.group(3).strip())
+                  formatted_item = f"* {clean_msg} ({h}) by @{author_user}"
+                  lower = raw_msg.lower()
+
+                  if re.search(r"^feat(\([^\)]*\))?:", lower):
+                      categories["features"].append(formatted_item)
+                  elif re.search(r"^fix(\([^\)]*\))?:", lower):
+                      categories["fixes"].append(formatted_item)
+                  elif re.search(r"^(refactor|perf|style|enhancement)(\([^\)]*\))?:", lower):
+                      categories["improvements"].append(formatted_item)
+                  elif re.search(r"^(chore|build|ci|docs|test)(\([^\)]*\))?:", lower):
+                      categories["maintenance"].append(formatted_item)
+                  else:
+                      categories["other"].append(formatted_item)
+              else:
+                  clean_line = strip_commit_prefix(line.lstrip("* ").strip())
+                  categories["other"].append(f"* {clean_line}")
+
+          fallback_sections = []
+          if categories["features"]:
+              fallback_sections.append("## 🚀 Features\n\n" + "\n".join(categories["features"]))
+          if categories["improvements"]:
+              fallback_sections.append("## ⚡ Improvements\n\n" + "\n".join(categories["improvements"]))
+          if categories["fixes"]:
+              fallback_sections.append("## 🐛 Fixes\n\n" + "\n".join(categories["fixes"]))
+          if categories["maintenance"]:
+              fallback_sections.append("## 🔧 Maintenance\n\n" + "\n".join(categories["maintenance"]))
+          if categories["other"]:
+              fallback_sections.append("## 📝 Other Changes\n\n" + "\n".join(categories["other"]))
+
+          if not fallback_sections:
+              fallback_sections.append("## 📝 Changes\n\n" + commits)
+
+          fallback_notes = "\n\n".join(fallback_sections)
+          release_notes_content = fallback_notes
+
+          # Optional: Use NineRouter AI if configured
+          if ninerouter_url and api_key and commits:
+              print(f"NineRouter AI credentials detected. Requesting AI release notes via {ninerouter_url}...")
+              system_prompt = (
+                  "You are an expert technical release note writer for software engineering projects. "
+                  "Never lump all commits together under a generic 'What's Changed' header. "
+                  "Always strip the conventional commit prefix (e.g., 'feat:', 'fix:', 'chore:', 'refactor:') from the output line items. "
+                  "Always use a valid single-word GitHub username for author mentions (e.g. '@jefripunza'). "
+                  "Do NOT include any 'Full Changelog' section, repository URLs, or comparison links."
+              )
+
+              user_prompt = f"""Categorize the following git commit logs into markdown release notes.
+
+              Use ONLY these category headers (omit headers that have no items):
+              ## 🚀 Features
+              - <for new features, additions, 'feat:' commits>
+
+              ## ⚡ Improvements
+              - <for refactoring, performance, styling, 'refactor:', 'perf:', 'style:' commits>
+
+              ## 🐛 Fixes
+              - <for bug fixes, type fixes, error corrections, 'fix:' commits>
+
+              ## 🔧 Maintenance
+              - <for chores, dependencies, CI/CD, tests, docs, 'chore:', 'ci:', 'build:', 'test:' commits>
+
+              Rules:
+              1. Categorize EVERY commit into its proper section based on conventional commit prefixes.
+              2. Strip the conventional commit prefix from every line item.
+              3. Do NOT output a 'What's Changed' heading.
+              4. Preserve the commit metadata format: `* <cleaned_message> (<hash>) by @<username>`.
+              5. Do NOT include any 'Full Changelog', compare URL, or repository link.
+              6. Output ONLY raw markdown without code fences.
+
+              Commits:
+              {commits}"""
+
+              try:
+                  req_data = json.dumps({
+                      "model": "github-action",
+                      "messages": [
+                          {"role": "system", "content": system_prompt},
+                          {"role": "user", "content": user_prompt}
+                      ],
+                      "temperature": 0.2
+                  }).encode("utf-8")
+
+                  req = urllib.request.Request(
+                      f"{ninerouter_url}/v1/chat/completions",
+                      data=req_data,
+                      headers={
+                          "Authorization": f"Bearer {api_key}",
+                          "Content-Type": "application/json"
+                      },
+                      method="POST"
+                  )
+
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      res = json.loads(response.read().decode("utf-8"))
+                      content = res.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                      content = re.sub(r"^```(?:markdown)?\s*", "", content)
+                      content = re.sub(r"\s*```$", "", content).strip()
+                      if content:
+                          release_notes_content = content
+                          print("Successfully generated AI release notes.")
+              except Exception as e:
+                  print(f"NineRouter API error: {e}, using smart fallback format.")
+
+          # Post-process release_notes_content
+          cleaned_notes_lines = []
+          for l in release_notes_content.split("\n"):
+              stripped = l.strip()
+              if re.search(r"full\s*changelog|github\.com", stripped, re.IGNORECASE):
+                  continue
+              cleaned_line = strip_commit_prefix(l)
+              cleaned_line = re.sub(r"by\s+@?([a-zA-Z0-9_\-\s]+?)(?=\s*$|\s*\n|\s*\))", lambda m: f"by @{clean_author(m.group(1))}", cleaned_line)
+              cleaned_notes_lines.append(cleaned_line)
+
+          release_notes_content = "\n".join(cleaned_notes_lines).strip()
+
+          # 1. Write release_notes.md
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.write(release_notes_content)
+
+          # 2. Write changelog.json
+          parsed_commits = []
+          for line in commits.split("\n"):
+              line = line.strip()
+              if not line:
+                  continue
+              m = re.match(r"^\*?\s*(.+?)\s*\(([a-f0-9]+)\)\s+by\s+@?(.+)$", line, re.IGNORECASE)
+              if m:
+                  raw_msg = m.group(1).strip()
+                  clean_msg = strip_commit_prefix(raw_msg)
+                  lower = raw_msg.lower()
+                  category = "other"
+                  if re.search(r"^feat(\([^\)]*\))?:", lower):
+                      category = "features"
+                  elif re.search(r"^fix(\([^\)]*\))?:", lower):
+                      category = "fixes"
+                  elif re.search(r"^(refactor|perf|style|enhancement)(\([^\)]*\))?:", lower):
+                      category = "improvements"
+                  elif re.search(r"^(chore|build|ci|docs|test)(\([^\)]*\))?:", lower):
+                      category = "maintenance"
+
+                  author_user = clean_author(m.group(3).strip())
+                  parsed_commits.append({
+                      "message": clean_msg,
+                      "raw_message": raw_msg,
+                      "category": category,
+                      "hash": m.group(2).strip(),
+                      "author": author_user
+                  })
+              else:
+                  clean_line = strip_commit_prefix(line.lstrip("* ").strip())
+                  parsed_commits.append({
+                      "message": clean_line,
+                      "raw_message": line,
+                      "category": "other",
+                      "hash": "",
+                      "author": ""
+                  })
+
+          changelog_data = {
+              "tag": current_tag,
+              "previous_tag": prev_tag,
+              "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "categories": {
+                  "features": [c for c in parsed_commits if c["category"] == "features"],
+                  "improvements": [c for c in parsed_commits if c["category"] == "improvements"],
+                  "fixes": [c for c in parsed_commits if c["category"] == "fixes"],
+                  "maintenance": [c for c in parsed_commits if c["category"] == "maintenance"],
+                  "other": [c for c in parsed_commits if c["category"] == "other"]
+              },
+              "release_notes": release_notes_content,
+              "commits": parsed_commits
+          }
+
+          with open("changelog.json", "w", encoding="utf-8") as f:
+              json.dump(changelog_data, f, indent=2, ensure_ascii=False)
+
+          print("Generated release_notes.md and changelog.json successfully.")
+          PYEOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.version_and_tag.outputs.tag }}
+          name: ${{ needs.version_and_tag.outputs.tag }}
+          body_path: release_notes.md
+          files: |
+            changelog.json
+          draft: false
+          prerelease: false

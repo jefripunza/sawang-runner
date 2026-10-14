@@ -8,8 +8,11 @@ services:
     restart: unless-stopped
     environment:
       # URL default untuk repository atau organisasi GitHub
-      # Ubah sesuai dengan repo/org Anda, atau lewati jika selalu memasukkan URL di script
       - GITHUB_URL=https://github.com/omni-ce/flutter-mobile-internal
+      # URL default untuk GitLab (bisa diubah ke self-hosted gitlab instance)
+      - GITLAB_URL=https://gitlab.com
+      # URL default untuk Gitea / Forgejo instance
+      - GITEA_URL=https://gitea.example.com
       - RUNNER_ALLOW_RUNASROOT=1
     volumes:
       # Persistensi data runner agar tidak hilang saat container restart / recreate
