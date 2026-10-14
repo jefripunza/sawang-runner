@@ -18,7 +18,7 @@ permissions:
   actions: write
 
 env:
-  NAME: sawang-runner
+  NAME: runner
 
 jobs:
   version_and_tag:
