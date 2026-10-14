@@ -20,8 +20,8 @@ Jika server fisik atau host Docker reboot, container akan menyala kembali secara
 4. **Pre-Installed Binaries & Auto-Detect**:
    - `gitlab-runner` dan `gitea-runner` (`act_runner`) sudah terpasang di sistem (`/usr/local/bin/`).
    - `github-init.sh` secara dinamis mendeteksi dan mengunduh versi GitHub Runner terbaru.
-5. **Dukungan Docker di Runner**:
-   Docker CLI sudah terpasang dan docker socket `/var/run/docker.sock` dimount ke host sehingga pipeline CI/CD dapat mengeksekusi perintah Docker (`docker build`, `docker push`, dll).
+5. **Dukungan Docker di Runner (Opsional)**:
+   Docker CLI sudah terpasang. Jika pipeline CI/CD Anda membutuhkan akses untuk mengeksekusi perintah Docker (`docker build`, dll), Anda dapat menambahkan mount socket `- /var/run/docker.sock:/var/run/docker.sock` di `docker-compose.yml`.
 6. **Data Terpersistensi**:
    Volume Docker digunakan untuk menyimpan folder `runners`, `cache`, dan konfigurasi state PM2 (`dump.pm2`), sehingga aman dari restart maupun recreate container.
 7. **CI/CD Release Otomatis**:
@@ -51,11 +51,13 @@ docker logs -f sawang-runner
 
 #### A. GitHub Actions Runner
 ```bash
-# Tambah Runner baru:
+# Tambah Runner baru (sertakan URL atau owner/repo):
 docker exec -it sawang-runner ./github-init.sh <runner-name> <token> <repo-atau-url>
-# Contoh (cukup sebutkan owner/repo atau full URL):
-docker exec -it sawang-runner ./github-init.sh flutter-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal
+
+# Contoh:
 docker exec -it sawang-runner ./github-init.sh flutter-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce/flutter-mobile-internal
+# Atau shorthand repo:
+docker exec -it sawang-runner ./github-init.sh flutter-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal
 
 # Hapus Runner:
 docker exec -it sawang-runner ./github-remove.sh <runner-name> <removal-token>

@@ -11,30 +11,16 @@ RUNNER_TOKEN="$2"
 REPO_INPUT="$3"
 
 # Tampilkan petunjuk penggunaan jika argumen kurang
-if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ]; then
+if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ] || [ -z "$REPO_INPUT" ]; then
     echo "======================================================================"
-    echo "❌ Error: Argumen tidak lengkap!"
+    echo "❌ Error: Argumen tidak lengkap! GitHub runner membutuhkan URL repository."
     echo "Penggunaan:"
     echo "  $0 <runner-name-yang-akan-dipakai-di-yaml> <token> <repo-atau-url>"
     echo ""
     echo "Contoh:"
-    echo "  $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal"
     echo "  $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce/flutter-mobile-internal"
+    echo "  $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal"
     echo "======================================================================"
-    exit 1
-fi
-
-# Jika argumen ke-3 belum diisi dan berada di sesi interaktif, minta input repo
-if [ -z "$REPO_INPUT" ]; then
-    if [ -t 0 ]; then
-        read -r -p "Masukkan nama repo/org GitHub (contoh: owner/repo atau https://github.com/owner/repo): " REPO_INPUT
-    fi
-fi
-
-if [ -z "$REPO_INPUT" ]; then
-    echo "❌ Error: Repository atau URL GitHub belum ditentukan!"
-    echo "Penggunaan: $0 <runner-name> <token> <repo-atau-url>"
-    echo "Contoh:     $0 $RUNNER_NAME $RUNNER_TOKEN omni-ce/flutter-mobile-internal"
     exit 1
 fi
 

@@ -6,8 +6,6 @@ services:
     image: sawang-runner:latest
     container_name: sawang-runner
     restart: unless-stopped
-    environment:
-      - RUNNER_ALLOW_RUNASROOT=1
     volumes:
       # Persistensi data runner agar tidak hilang saat container restart / recreate
       - runner_data:/home/runner/runners
@@ -15,8 +13,6 @@ services:
       - pm2_data:/home/runner/.pm2
       # Cache installer GitHub Runner agar pembuatan runner baru cepat tanpa unduh ulang
       - runner_cache:/home/runner/cache
-      # Mount Docker socket dari host agar runner bisa build Docker image jika diperlukan
-      - /var/run/docker.sock:/var/run/docker.sock
     logging:
       driver: "json-file"
       options:
