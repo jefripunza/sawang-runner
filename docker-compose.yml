@@ -7,12 +7,6 @@ services:
     container_name: sawang-runner
     restart: unless-stopped
     environment:
-      # URL default untuk repository atau organisasi GitHub
-      - GITHUB_URL=https://github.com/omni-ce/flutter-mobile-internal
-      # URL default untuk GitLab (bisa diubah ke self-hosted gitlab instance)
-      - GITLAB_URL=https://gitlab.com
-      # URL default untuk Gitea / Forgejo instance
-      - GITEA_URL=https://gitea.example.com
       - RUNNER_ALLOW_RUNASROOT=1
     volumes:
       # Persistensi data runner agar tidak hilang saat container restart / recreate

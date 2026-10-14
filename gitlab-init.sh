@@ -8,22 +8,36 @@ set -e
 
 RUNNER_NAME="$1"
 RUNNER_TOKEN="$2"
-GITLAB_URL="${3:-${GITLAB_URL:-https://gitlab.com}}"
+GITLAB_INPUT="$3"
 
 if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ]; then
     echo "======================================================================"
     echo "❌ Error: Argumen tidak lengkap!"
     echo "Penggunaan:"
-    echo "  $0 <runner-name-yang-akan-dipakai-di-ci> <token> [gitlab-url]"
+    echo "  $0 <runner-name-yang-akan-dipakai-di-ci> <token> [gitlab-hostname-atau-url]"
     echo ""
     echo "Contoh:"
+    echo "  # 1. Menggunakan hostname utama (gitlab.com):"
     echo "  $0 gitlab-runner-01 glrt-ABC123xyz"
+    echo ""
+    echo "  # 2. Menggunakan self-hosted GitLab:"
+    echo "  $0 gitlab-runner-01 glrt-ABC123xyz gitlab.example.com"
     echo "  $0 gitlab-runner-01 glrt-ABC123xyz https://gitlab.example.com"
     echo ""
-    echo "Catatan: Jika [gitlab-url] tidak diisi, script akan mengambil dari"
-    echo "variabel environment GITLAB_URL atau default: https://gitlab.com"
+    echo "Catatan: Jika [gitlab-hostname-atau-url] tidak diisi, otomatis menggunakan"
+    echo "hostname utama https://gitlab.com"
     echo "======================================================================"
     exit 1
+fi
+
+if [ -n "$GITLAB_INPUT" ]; then
+    if [[ "$GITLAB_INPUT" =~ ^https?:// ]]; then
+        GITLAB_URL="$GITLAB_INPUT"
+    else
+        GITLAB_URL="https://$GITLAB_INPUT"
+    fi
+else
+    GITLAB_URL="https://gitlab.com"
 fi
 
 echo "======================================================================"

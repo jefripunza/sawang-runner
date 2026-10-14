@@ -52,9 +52,10 @@ docker logs -f sawang-runner
 #### A. GitHub Actions Runner
 ```bash
 # Tambah Runner baru:
-docker exec -it sawang-runner ./github-init.sh <runner-name> <token> [github-url]
-# Contoh:
-docker exec -it sawang-runner ./github-init.sh flutter-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ
+docker exec -it sawang-runner ./github-init.sh <runner-name> <token> <repo-atau-url>
+# Contoh (cukup sebutkan owner/repo atau full URL):
+docker exec -it sawang-runner ./github-init.sh flutter-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal
+docker exec -it sawang-runner ./github-init.sh flutter-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce/flutter-mobile-internal
 
 # Hapus Runner:
 docker exec -it sawang-runner ./github-remove.sh <runner-name> <removal-token>
@@ -62,11 +63,14 @@ docker exec -it sawang-runner ./github-remove.sh <runner-name> <removal-token>
 
 #### B. GitLab CI/CD Runner
 ```bash
-# Tambah Runner baru:
-docker exec -it sawang-runner ./gitlab-init.sh <runner-name> <token> [gitlab-url]
-# Contoh (GitLab.com):
+# Tambah Runner baru (otomatis ke hostname utama gitlab.com jika URL tidak diisi):
+docker exec -it sawang-runner ./gitlab-init.sh <runner-name> <token> [gitlab-hostname-atau-url]
+
+# Contoh 1: Hostname Utama (gitlab.com) - cukup runner name dan token
 docker exec -it sawang-runner ./gitlab-init.sh gitlab-runner-01 glrt-ABC123xyz
-# Contoh (Self-hosted GitLab):
+
+# Contoh 2: Self-hosted GitLab - sertakan hostname / url instance Anda
+docker exec -it sawang-runner ./gitlab-init.sh gitlab-runner-01 glrt-ABC123xyz gitlab.example.com
 docker exec -it sawang-runner ./gitlab-init.sh gitlab-runner-01 glrt-ABC123xyz https://gitlab.example.com
 
 # Hapus Runner:
@@ -75,8 +79,9 @@ docker exec -it sawang-runner ./gitlab-remove.sh <runner-name> [token]
 
 #### C. Gitea / Forgejo Actions Runner
 ```bash
-# Tambah Runner baru:
-docker exec -it sawang-runner ./gitea-init.sh <runner-name> <token> [gitea-url]
+# Tambah Runner baru (URL instance Gitea WAJIB disertakan):
+docker exec -it sawang-runner ./gitea-init.sh <runner-name> <token> <gitea-url>
+
 # Contoh:
 docker exec -it sawang-runner ./gitea-init.sh gitea-runner-01 ABCD1234EFGH5678 https://gitea.example.com
 

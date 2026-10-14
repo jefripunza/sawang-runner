@@ -6,6 +6,11 @@ set -e
 # Handles process resurrection and logs streaming
 # ==============================================================================
 
+# Jika ada argumen custom command yang dipassing ke container (contoh: bash, sh, command test), jalankan langsung
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+
 echo "======================================================================"
 echo "🤖 Menjalankan Container Multi-Runner dengan PM2..."
 echo "======================================================================"

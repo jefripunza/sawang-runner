@@ -8,29 +8,23 @@ set -e
 
 RUNNER_NAME="$1"
 RUNNER_TOKEN="$2"
-GITEA_URL="${3:-${GITEA_URL}}"
+GITEA_URL="$3"
 
-if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ]; then
+if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ] || [ -z "$GITEA_URL" ]; then
     echo "======================================================================"
-    echo "❌ Error: Argumen tidak lengkap!"
+    echo "❌ Error: Argumen tidak lengkap! Gitea wajib menyertakan URL instance."
     echo "Penggunaan:"
-    echo "  $0 <runner-name-yang-akan-dipakai-di-yaml> <token> [gitea-url]"
+    echo "  $0 <runner-name-yang-akan-dipakai-di-yaml> <token> <gitea-url>"
     echo ""
     echo "Contoh:"
-    echo "  $0 gitea-runner-01 ABCD1234EFGH5678"
     echo "  $0 gitea-runner-01 ABCD1234EFGH5678 https://gitea.example.com"
-    echo ""
-    echo "Catatan: Jika [gitea-url] tidak diisi, script akan mengambil dari"
-    echo "variabel environment GITEA_URL ($GITEA_URL)."
     echo "======================================================================"
     exit 1
 fi
 
-if [ -z "$GITEA_URL" ]; then
-    echo "❌ Error: URL instance Gitea belum ditentukan!"
-    echo "Silakan berikan URL sebagai argumen ke-3 atau set environment variable GITEA_URL."
-    echo "Contoh: $0 $RUNNER_NAME $RUNNER_TOKEN https://gitea.example.com"
-    exit 1
+# Format URL jika user memasukkan hostname saja
+if [[ ! "$GITEA_URL" =~ ^https?:// ]]; then
+    GITEA_URL="https://$GITEA_URL"
 fi
 
 echo "======================================================================"
