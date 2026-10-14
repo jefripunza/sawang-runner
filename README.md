@@ -36,7 +36,11 @@ Jika server fisik atau host Docker reboot, container akan menyala kembali secara
 Jalankan container menggunakan Docker Compose:
 
 ```bash
+# Mode development (build lokal):
 docker compose up -d --build
+
+# Mode production / deploy (menggunakan image resmi dari Docker Hub):
+docker compose -f docker-compose.deploy.yml up -d
 ```
 
 Cek log container:

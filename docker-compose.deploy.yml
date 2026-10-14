@@ -1,0 +1,29 @@
+services:
+  sawang-runner:
+    image: sawangteknologiindonesia/runner:latest
+    container_name: sawang-runner
+    restart: unless-stopped
+    pull_policy: always
+    volumes:
+      # Persistensi data runner agar tidak hilang saat container restart / recreate
+      - runner_data:/home/runner/runners
+      # Persistensi PM2 process list (dump.pm2) agar auto resurrect saat container hidup
+      - pm2_data:/home/runner/.pm2
+      # Cache installer GitHub Runner agar pembuatan runner baru cepat tanpa unduh ulang
+      - runner_cache:/home/runner/cache
+    healthcheck:
+      test: ["CMD-SHELL", "pm2 ping > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  runner_data:
+  pm2_data:
+  runner_cache:
