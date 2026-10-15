@@ -95,9 +95,9 @@ $RUNNER_BIN register \
     --labels "$RUNNER_NAME:host,ubuntu-latest:host" \
     --no-interactive
 
-# Jalankan dengan PM2 agar auto-restart saat reboot
-echo "⚡ Menjalankan Gitea runner dengan PM2..."
-pm2 start "$RUNNER_BIN" --name "$RUNNER_NAME" --cwd "$TARGET_RUNNER_DIR" -- daemon
+# Jalankan dengan PM2 mode watch agar auto-restart saat reboot
+echo "⚡ Menjalankan Gitea runner dengan PM2 (watch mode)..."
+pm2 start "$RUNNER_BIN" --name "$RUNNER_NAME" --cwd "$TARGET_RUNNER_DIR" --watch --ignore-watch "_work .cache .git *.log" -- daemon
 
 # Simpan state PM2
 pm2 save

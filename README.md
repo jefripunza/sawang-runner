@@ -107,6 +107,17 @@ docker exec -it sawang-runner ./runner-list.sh
 docker exec -it sawang-runner pm2 status
 ```
 
+Live update status PM2 secara realtime (refresh tiap 0.5s):
+```bash
+docker exec -it sawang-runner ./watch.sh
+# Menjalankan: watch -n 0.5 -d pm2 ls
+```
+
+Mengubah semua runner yang sedang running ke mode watch:
+```bash
+docker exec -it sawang-runner ./watch-all.sh
+```
+
 Melihat log realtime dari runner tertentu:
 ```bash
 docker exec -it sawang-runner pm2 logs flutter-runner-01

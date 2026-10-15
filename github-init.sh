@@ -154,9 +154,9 @@ export RUNNER_ALLOW_RUNASROOT=1
     --unattended \
     --replace
 
-# 6. Registrasikan ke PM2 agar auto-start & auto-restart
-echo "⚡ Menjalankan runner dengan PM2..."
-pm2 start ./run.sh --name "$RUNNER_NAME" --cwd "$TARGET_RUNNER_DIR" --interpreter bash
+# 6. Registrasikan ke PM2 dengan mode watch agar auto-start & auto-restart
+echo "⚡ Menjalankan runner dengan PM2 (watch mode)..."
+pm2 start ./run.sh --name "$RUNNER_NAME" --cwd "$TARGET_RUNNER_DIR" --interpreter bash --watch --ignore-watch "_work _diag .git *.log"
 
 # Simpan state PM2 agar survive saat container atau host reboot
 pm2 save

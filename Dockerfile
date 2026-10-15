@@ -82,6 +82,8 @@ WORKDIR /home/runner
 # 7. Salin script operasional runner (GitHub, GitLab, Gitea)
 COPY --chown=runner:runner entrypoint.sh /home/runner/entrypoint.sh
 COPY --chown=runner:runner runner-list.sh /home/runner/runner-list.sh
+COPY --chown=runner:runner watch.sh /home/runner/watch.sh
+COPY --chown=runner:runner watch-all.sh /home/runner/watch-all.sh
 COPY --chown=runner:runner github-init.sh /home/runner/github-init.sh
 COPY --chown=runner:runner github-remove.sh /home/runner/github-remove.sh
 COPY --chown=runner:runner gitlab-init.sh /home/runner/gitlab-init.sh

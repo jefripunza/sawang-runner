@@ -103,9 +103,9 @@ gitlab-runner register \
     --config "$CONFIG_FILE" \
     --tag-list "$RUNNER_NAME"
 
-# Registrasikan ke PM2 agar auto-start & auto-resurrect
-echo "⚡ Menjalankan GitLab runner dengan PM2..."
-pm2 start gitlab-runner --name "$RUNNER_NAME" -- run --config "$CONFIG_FILE" --working-directory "$TARGET_RUNNER_DIR"
+# Registrasikan ke PM2 dengan mode watch agar auto-start & auto-resurrect
+echo "⚡ Menjalankan GitLab runner dengan PM2 (watch mode)..."
+pm2 start gitlab-runner --name "$RUNNER_NAME" --watch --ignore-watch "builds cache .git *.log" -- run --config "$CONFIG_FILE" --working-directory "$TARGET_RUNNER_DIR"
 
 # Simpan state PM2 agar survive saat container atau host reboot
 pm2 save
