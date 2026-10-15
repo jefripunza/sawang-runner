@@ -6,19 +6,47 @@ set -e
 # Usage: ./gitea-init.sh <runner-name> <token> [gitea-url]
 # ==============================================================================
 
+show_usage() {
+    echo "======================================================================"
+    echo "📖 Panduan Penggunaan Gitea / Forgejo Runner Initialization"
+    echo "======================================================================"
+    echo "Penggunaan:"
+    echo "  $0 <runner-name> <token> <gitea-url>"
+    echo ""
+    echo "Argumen:"
+    echo "  1. runner-name : Nama unik runner (digunakan di 'runs-on' workflow)"
+    echo "  2. token       : Registration token dari instance Gitea"
+    echo "  3. gitea-url   : URL lengkap atau hostname instance Gitea (wajib)"
+    echo ""
+    echo "Opsi:"
+    echo "  -h, --help     : Tampilkan bantuan ini"
+    echo ""
+    echo "Contoh:"
+    echo "  $0 gitea-runner-01 ABCD1234EFGH5678 https://gitea.example.com"
+    echo "  $0 gitea-runner-01 ABCD1234EFGH5678 gitea.example.com"
+    echo ""
+    echo "📌 Cara pemakaian di Gitea Actions Workflow (.gitea/workflows/ci.yaml):"
+    echo "  jobs:"
+    echo "    build:"
+    echo "      runs-on: <runner-name>"
+    echo "======================================================================"
+}
+
+# Tampilkan petunjuk bantuan jika tanpa argumen atau memakai flag bantuan
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_usage
+    exit 0
+fi
+
 RUNNER_NAME="$1"
 RUNNER_TOKEN="$2"
 GITEA_URL="$3"
 
+# Validasi kelengkapan argumen
 if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ] || [ -z "$GITEA_URL" ]; then
-    echo "======================================================================"
-    echo "❌ Error: Argumen tidak lengkap! Gitea wajib menyertakan URL instance."
-    echo "Penggunaan:"
-    echo "  $0 <runner-name-yang-akan-dipakai-di-yaml> <token> <gitea-url>"
+    echo "❌ Error: Argumen tidak lengkap! Gitea wajib menyertakan <runner-name> <token> <gitea-url>"
     echo ""
-    echo "Contoh:"
-    echo "  $0 gitea-runner-01 ABCD1234EFGH5678 https://gitea.example.com"
-    echo "======================================================================"
+    show_usage
     exit 1
 fi
 

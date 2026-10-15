@@ -6,15 +6,21 @@ set -e
 # Usage: ./gitlab-init.sh <runner-name> <token> [gitlab-url]
 # ==============================================================================
 
-RUNNER_NAME="$1"
-RUNNER_TOKEN="$2"
-GITLAB_INPUT="$3"
-
-if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ]; then
+show_usage() {
     echo "======================================================================"
-    echo "❌ Error: Argumen tidak lengkap!"
+    echo "📖 Panduan Penggunaan GitLab Runner Initialization"
+    echo "======================================================================"
     echo "Penggunaan:"
-    echo "  $0 <runner-name-yang-akan-dipakai-di-ci> <token> [gitlab-hostname-atau-url]"
+    echo "  $0 <runner-name> <token> [gitlab-hostname-atau-url]"
+    echo ""
+    echo "Argumen:"
+    echo "  1. runner-name              : Nama unik runner (digunakan di tags .gitlab-ci.yml)"
+    echo "  2. token                    : Registration/authentication token dari GitLab (glrt-...)"
+    echo "  3. gitlab-hostname-atau-url : (Opsional) Hostname atau URL instance GitLab"
+    echo "                                Default jika kosong: https://gitlab.com"
+    echo ""
+    echo "Opsi:"
+    echo "  -h, --help                  : Tampilkan bantuan ini"
     echo ""
     echo "Contoh:"
     echo "  # 1. Menggunakan hostname utama (gitlab.com):"
@@ -24,9 +30,28 @@ if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ]; then
     echo "  $0 gitlab-runner-01 glrt-ABC123xyz gitlab.example.com"
     echo "  $0 gitlab-runner-01 glrt-ABC123xyz https://gitlab.example.com"
     echo ""
-    echo "Catatan: Jika [gitlab-hostname-atau-url] tidak diisi, otomatis menggunakan"
-    echo "hostname utama https://gitlab.com"
+    echo "📌 Cara pemakaian di GitLab CI/CD (.gitlab-ci.yml):"
+    echo "  job_build:"
+    echo "    tags:"
+    echo "      - <runner-name>"
     echo "======================================================================"
+}
+
+# Tampilkan petunjuk bantuan jika tanpa argumen atau memakai flag bantuan
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_usage
+    exit 0
+fi
+
+RUNNER_NAME="$1"
+RUNNER_TOKEN="$2"
+GITLAB_INPUT="$3"
+
+# Validasi kelengkapan argumen
+if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ]; then
+    echo "❌ Error: Argumen tidak lengkap! GitLab runner membutuhkan minimal <runner-name> dan <token>"
+    echo ""
+    show_usage
     exit 1
 fi
 

@@ -6,21 +6,47 @@ set -e
 # Usage: ./github-init.sh <runner-name> <token> [github-url]
 # ==============================================================================
 
-RUNNER_NAME="$1"
-RUNNER_TOKEN="$2"
-REPO_INPUT="$3"
-
-# Tampilkan petunjuk penggunaan jika argumen kurang
-if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ] || [ -z "$REPO_INPUT" ]; then
+show_usage() {
     echo "======================================================================"
-    echo "❌ Error: Argumen tidak lengkap! GitHub runner membutuhkan URL repository."
+    echo "📖 Panduan Penggunaan GitHub Runner Initialization"
+    echo "======================================================================"
     echo "Penggunaan:"
-    echo "  $0 <runner-name-yang-akan-dipakai-di-yaml> <token> <repo-atau-url>"
+    echo "  $0 <runner-name> <token> <repo-atau-url>"
+    echo ""
+    echo "Argumen:"
+    echo "  1. runner-name    : Nama unik runner (digunakan di 'runs-on' workflow)"
+    echo "  2. token          : Token registrasi runner dari GitHub"
+    echo "  3. repo-atau-url  : URL repo (https://github.com/owner/repo) atau format owner/repo"
+    echo ""
+    echo "Opsi:"
+    echo "  -h, --help        : Tampilkan bantuan ini"
     echo ""
     echo "Contoh:"
     echo "  $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce/flutter-mobile-internal"
     echo "  $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal"
+    echo ""
+    echo "📌 Cara pemakaian di GitHub Actions Workflow (.github/workflows/ci.yml):"
+    echo "  jobs:"
+    echo "    build:"
+    echo "      runs-on: <runner-name>"
     echo "======================================================================"
+}
+
+# Tampilkan petunjuk bantuan jika tanpa argumen atau memakai flag bantuan
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_usage
+    exit 0
+fi
+
+RUNNER_NAME="$1"
+RUNNER_TOKEN="$2"
+REPO_INPUT="$3"
+
+# Validasi kelengkapan argumen
+if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ] || [ -z "$REPO_INPUT" ]; then
+    echo "❌ Error: Argumen tidak lengkap! GitHub runner membutuhkan: <runner-name> <token> <repo-atau-url>"
+    echo ""
+    show_usage
     exit 1
 fi
 

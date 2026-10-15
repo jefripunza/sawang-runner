@@ -6,12 +6,27 @@ set -e
 # Usage: ./gitea-remove.sh <runner-name>
 # ==============================================================================
 
+show_usage() {
+    echo "======================================================================"
+    echo "📖 Panduan Penggunaan Gitea Runner Removal"
+    echo "======================================================================"
+    echo "Penggunaan: $0 <runner-name>"
+    echo "Opsi:       -h, --help    Tampilkan bantuan ini"
+    echo "Contoh:     $0 gitea-runner-01"
+    echo "======================================================================"
+}
+
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_usage
+    exit 0
+fi
+
 RUNNER_NAME="$1"
 
 if [ -z "$RUNNER_NAME" ]; then
-    echo "❌ Error: Argumen tidak lengkap!"
-    echo "Penggunaan: $0 <runner-name>"
-    echo "Contoh:     $0 gitea-runner-01"
+    echo "❌ Error: Argumen tidak lengkap! Membutuhkan <runner-name>"
+    echo ""
+    show_usage
     exit 1
 fi
 

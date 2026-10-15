@@ -6,13 +6,29 @@ set -e
 # Usage: ./gitlab-remove.sh <runner-name> [token]
 # ==============================================================================
 
+show_usage() {
+    echo "======================================================================"
+    echo "📖 Panduan Penggunaan GitLab Runner Removal"
+    echo "======================================================================"
+    echo "Penggunaan: $0 <runner-name> [token]"
+    echo "Opsi:       -h, --help    Tampilkan bantuan ini"
+    echo "Contoh:     $0 gitlab-runner-01"
+    echo "            $0 gitlab-runner-01 glrt-ABC123xyz"
+    echo "======================================================================"
+}
+
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_usage
+    exit 0
+fi
+
 RUNNER_NAME="$1"
 RUNNER_TOKEN="$2"
 
 if [ -z "$RUNNER_NAME" ]; then
-    echo "❌ Error: Argumen tidak lengkap!"
-    echo "Penggunaan: $0 <runner-name> [token]"
-    echo "Contoh:     $0 gitlab-runner-01"
+    echo "❌ Error: Argumen tidak lengkap! Membutuhkan <runner-name>"
+    echo ""
+    show_usage
     exit 1
 fi
 

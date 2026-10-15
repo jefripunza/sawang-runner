@@ -6,13 +6,28 @@ set -e
 # Usage: ./github-remove.sh <runner-name> <token>
 # ==============================================================================
 
+show_usage() {
+    echo "======================================================================"
+    echo "📖 Panduan Penggunaan GitHub Runner Removal"
+    echo "======================================================================"
+    echo "Penggunaan: $0 <runner-name> <removal-token>"
+    echo "Opsi:       -h, --help    Tampilkan bantuan ini"
+    echo "Contoh:     $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ"
+    echo "======================================================================"
+}
+
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_usage
+    exit 0
+fi
+
 RUNNER_NAME="$1"
 RUNNER_TOKEN="$2"
 
 if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ]; then
-    echo "❌ Error: Argumen tidak lengkap!"
-    echo "Penggunaan: $0 <runner-name> <removal-token>"
-    echo "Contoh:     $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ"
+    echo "❌ Error: Argumen tidak lengkap! Membutuhkan <runner-name> dan <removal-token>"
+    echo ""
+    show_usage
     exit 1
 fi
 
