@@ -54,14 +54,23 @@ docker logs -f sawang-runner
 ### 2. Manajemen Runner
 
 #### A. GitHub Actions Runner
-```bash
-# Tambah Runner baru (sertakan URL atau owner/repo):
-docker exec -it sawang-runner ./github-init.sh <runner-name> <token> <repo-atau-url>
+Mendukung 2 level runner:
+1. **Repository-Level** (hanya untuk 1 repository tertentu)
+2. **Organization-Level** (dapat diakses oleh seluruh repository dalam organisasi)
 
-# Contoh:
+```bash
+# 1. Format Perintah:
+docker exec -it sawang-runner ./github-init.sh <runner-name> <token> <repo-org-atau-url>
+
+# --- Contoh Repository-Level Runner ---
 docker exec -it sawang-runner ./github-init.sh flutter-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce/flutter-mobile-internal
-# Atau shorthand repo:
+# Atau format shorthand:
 docker exec -it sawang-runner ./github-init.sh flutter-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal
+
+# --- Contoh Organization-Level Runner ---
+docker exec -it sawang-runner ./github-init.sh org-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce
+# Atau format shorthand:
+docker exec -it sawang-runner ./github-init.sh org-runner-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce
 
 # Hapus Runner:
 docker exec -it sawang-runner ./github-remove.sh <runner-name> <removal-token>

@@ -11,19 +11,26 @@ show_usage() {
     echo "📖 Panduan Penggunaan GitHub Runner Initialization"
     echo "======================================================================"
     echo "Penggunaan:"
-    echo "  $0 <runner-name> <token> <repo-atau-url>"
+    echo "  $0 <runner-name> <token> <repo-org-atau-url>"
     echo ""
     echo "Argumen:"
-    echo "  1. runner-name    : Nama unik runner (digunakan di 'runs-on' workflow)"
-    echo "  2. token          : Token registrasi runner dari GitHub"
-    echo "  3. repo-atau-url  : URL repo (https://github.com/owner/repo) atau format owner/repo"
+    echo "  1. runner-name       : Nama unik runner (digunakan di 'runs-on' workflow)"
+    echo "  2. token             : Token registrasi runner dari GitHub"
+    echo "  3. repo-org-atau-url : Target repo atau organization:"
+    echo "                         - Repository   : https://github.com/owner/repo ATAU owner/repo"
+    echo "                         - Organization : https://github.com/org-name   ATAU org-name"
     echo ""
     echo "Opsi:"
-    echo "  -h, --help        : Tampilkan bantuan ini"
+    echo "  -h, --help           : Tampilkan bantuan ini"
     echo ""
     echo "Contoh:"
-    echo "  $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce/flutter-mobile-internal"
-    echo "  $0 runner-flutter-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal"
+    echo "  # 1. Repository-Level Runner (Hanya untuk 1 repository):"
+    echo "  $0 runner-repo-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce/flutter-mobile-internal"
+    echo "  $0 runner-repo-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce/flutter-mobile-internal"
+    echo ""
+    echo "  # 2. Organization-Level Runner (Dapat digunakan oleh semua repo di organization):"
+    echo "  $0 runner-org-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ https://github.com/omni-ce"
+    echo "  $0 runner-org-01 AIQM3AJEWK4Z2T2CJ2I4YLTKZ4TUQ omni-ce"
     echo ""
     echo "📌 Cara pemakaian di GitHub Actions Workflow (.github/workflows/ci.yml):"
     echo "  jobs:"
@@ -44,22 +51,63 @@ REPO_INPUT="$3"
 
 # Validasi kelengkapan argumen
 if [ -z "$RUNNER_NAME" ] || [ -z "$RUNNER_TOKEN" ] || [ -z "$REPO_INPUT" ]; then
-    echo "❌ Error: Argumen tidak lengkap! GitHub runner membutuhkan: <runner-name> <token> <repo-atau-url>"
+    echo "❌ Error: Argumen tidak lengkap! GitHub runner membutuhkan: <runner-name> <token> <repo-org-atau-url>"
     echo ""
     show_usage
     exit 1
 fi
 
-# Jika user menginput 'owner/repo', ubah otomatis menjadi 'https://github.com/owner/repo'
-if [[ "$REPO_INPUT" =~ ^https?:// ]]; then
-    REPO_URL="$REPO_INPUT"
+# Bersihkan input URL
+CLEANED_INPUT="${REPO_INPUT%/}"
+
+# Jika user menginput shorthand 'owner/repo' atau 'org', ubah otomatis menjadi 'https://github.com/...'
+if [[ "$CLEANED_INPUT" =~ ^https?:// ]]; then
+    REPO_URL="$CLEANED_INPUT"
 else
-    REPO_URL="https://github.com/${REPO_INPUT#/}"
+    REPO_URL="https://github.com/${CLEANED_INPUT#/}"
+fi
+
+# Sanitasi otomatis jika user menyalin URL langsung dari address bar browser
+REPO_URL=$(echo "$REPO_URL" | sed -E 's|/organizations/([^/]+)/settings/.*|/\1|')
+REPO_URL=$(echo "$REPO_URL" | sed -E 's|(/[^/]+/[^/]+)/settings/.*|\1|')
+REPO_URL="${REPO_URL%.git}"
+REPO_URL="${REPO_URL%/}"
+
+# Validasi URL tidak boleh hanya root github.com
+if [ "$REPO_URL" = "https://github.com" ] || [ "$REPO_URL" = "http://github.com" ]; then
+    echo "❌ Error: Target URL GitHub tidak valid: '$REPO_INPUT'"
+    echo ""
+    echo "   GitHub Actions Runner membutuhkan target spesifik ke Repository atau Organization:"
+    echo "     - Tingkat Repo : https://github.com/<owner>/<repo> (atau shorthand: <owner>/<repo>)"
+    echo "     - Tingkat Org  : https://github.com/<org>          (atau shorthand: <org>)"
+    echo "     - Tingkat Ent  : https://github.com/enterprises/<enterprise>"
+    echo ""
+    echo "   ⚠️ Jangan hanya menginputkan 'https://github.com' karena GitHub API akan mengembalikan '404 Not Found'."
+    echo ""
+    echo "   Contoh pemakaian yang benar:"
+    echo "     $0 $RUNNER_NAME $RUNNER_TOKEN omni-ce/flutter-mobile-internal   # Repo"
+    echo "     $0 $RUNNER_NAME $RUNNER_TOKEN omni-ce                           # Organization"
+    exit 1
+fi
+
+# Deteksi Scope (Repository vs Organization vs Enterprise)
+SCOPE_PATH="${REPO_URL#https://github.com/}"
+SCOPE_PATH="${SCOPE_PATH#http://github.com/}"
+SCOPE_PATH="${SCOPE_PATH#/}"
+SCOPE_PATH="${SCOPE_PATH%/}"
+
+if [[ "$SCOPE_PATH" =~ ^enterprises/([^/]+) ]]; then
+    RUNNER_LEVEL="Enterprise (${BASH_REMATCH[1]})"
+elif [[ "$SCOPE_PATH" =~ ^([^/]+)/([^/]+)$ ]]; then
+    RUNNER_LEVEL="Repository (${BASH_REMATCH[1]}/${BASH_REMATCH[2]})"
+else
+    RUNNER_LEVEL="Organization ($SCOPE_PATH)"
 fi
 
 echo "======================================================================"
 echo "🚀 Memulai inisialisasi GitHub Runner..."
 echo "  - Nama Runner : $RUNNER_NAME"
+echo "  - Level       : $RUNNER_LEVEL"
 echo "  - GitHub URL  : $REPO_URL"
 echo "  - Token       : ${RUNNER_TOKEN:0:6}******"
 echo "======================================================================"
@@ -145,14 +193,36 @@ cd "$TARGET_RUNNER_DIR"
 
 export RUNNER_ALLOW_RUNASROOT=1
 
-./config.sh \
+if ! ./config.sh \
     --url "$REPO_URL" \
     --token "$RUNNER_TOKEN" \
     --name "$RUNNER_NAME" \
     --labels "$RUNNER_NAME" \
     --work "_work" \
     --unattended \
-    --replace
+    --replace; then
+    echo ""
+    echo "======================================================================"
+    echo "❌ GAGAL MENDAFTARKAN RUNNER KE GITHUB!"
+    echo "======================================================================"
+    echo "Penyebab paling umum HTTP 404 (Not Found):"
+    echo "1. Target URL salah / typo: '$REPO_URL'"
+    echo "   - Format tingkat Repo: https://github.com/<owner>/<repo> (atau '<owner>/<repo>')"
+    echo "   - Format tingkat Org : https://github.com/<organization>"
+    echo "   - Format tingkat Ent : https://github.com/enterprises/<enterprise>"
+    echo "   ⚠️ URL tidak boleh hanya 'https://github.com'."
+    echo ""
+    echo "2. Token registrasi kadaluarsa (Expired):"
+    echo "   Token registrasi GitHub Actions HANYA BERLAKU 60 MENIT (1 jam)."
+    echo "   Jika sudah lewat 1 jam, buka kembali halaman Settings > Actions > Runners"
+    echo "   di GitHub untuk generate token baru."
+    echo ""
+    echo "3. Ketidakcocokan scope token vs URL:"
+    echo "   - Token dari Repo Settings hanya bisa dipakai untuk repo tersebut."
+    echo "   - Token dari Organization Settings hanya bisa dipakai untuk org tersebut."
+    echo "======================================================================"
+    exit 1
+fi
 
 # 6. Registrasikan ke PM2 dengan mode watch agar auto-start & auto-restart
 echo "⚡ Menjalankan runner dengan PM2 (watch mode)..."
